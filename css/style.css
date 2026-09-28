@@ -1,0 +1,97 @@
+:root{
+  --bg:#fbf8f8;
+  --panel:#fffdfd;
+  --text:#4f494d;
+  --muted:#8c8388;
+  --pink:#e8c9cf;
+  --pink-strong:#d8aeb8;
+  --line:#e9dde0;
+  --shadow:0 10px 28px rgba(86,64,72,.10);
+  --new:#d9919f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif}
+button,input{font:inherit}
+body{display:flex;justify-content:center}
+.app{width:min(100%,430px);min-height:100dvh;background:linear-gradient(#fffafa,#fbf7f8);position:relative;overflow:hidden}
+.screen{display:none;min-height:100dvh;padding:calc(22px + env(safe-area-inset-top)) 22px calc(26px + env(safe-area-inset-bottom));flex-direction:column;align-items:center;text-align:center}
+.screen.active{display:flex}
+.brand{font-size:24px;font-weight:800;letter-spacing:.06em;margin:4px 0 10px}
+.version{font-size:12px;color:#aaa}
+.eyebrow{font-size:14px;font-weight:700;color:var(--muted);letter-spacing:.12em;margin-top:2px}
+.cat-card{width:100%;display:flex;justify-content:center;align-items:center;flex:1;min-height:310px}
+.cat-img{width:min(86vw,360px);max-height:430px;object-fit:contain;display:block;border-radius:28px;mix-blend-mode:multiply}
+.cat-img.walk{width:min(82vw,340px)}
+.bubble{max-width:330px;background:rgba(255,255,255,.84);border:1px solid var(--line);border-radius:18px;padding:12px 16px;margin:2px 0 16px;box-shadow:0 6px 18px rgba(94,72,79,.06);line-height:1.65}
+.primary,.secondary,.ghost{border:0;border-radius:999px;cursor:pointer;transition:.18s transform,.18s opacity;min-height:52px;padding:0 24px;font-weight:800}
+.primary{width:100%;max-width:330px;background:var(--pink);color:#563f47;box-shadow:var(--shadow)}
+.primary:disabled{opacity:.55;cursor:default;box-shadow:none}
+.primary:active:not(:disabled),.secondary:active,.ghost:active{transform:scale(.98)}
+.secondary{width:100%;max-width:330px;background:white;color:#654f56;border:1px solid var(--line);margin-top:10px}
+.ghost{background:transparent;color:var(--muted);min-height:42px;padding:0 14px;margin-top:12px}
+.mini-count{display:inline-block;margin-left:5px;font-size:11px;background:#fff;border:1px solid var(--line);padding:2px 7px;border-radius:999px}
+.status{width:100%;max-width:330px;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:18px;margin:4px 0 18px;box-shadow:var(--shadow)}
+.timer{font-size:40px;font-weight:800;letter-spacing:.06em;margin:6px 0 2px}
+.small{font-size:13px;color:var(--muted)}
+.distance{display:flex;justify-content:center;gap:8px;align-items:center;margin-top:12px;font-weight:700}
+.return-title{font-size:31px;font-weight:900;margin:2px 0 8px}
+.photo-badge{align-self:center;background:var(--new);color:#fff;font-weight:900;letter-spacing:.08em;border-radius:999px;padding:7px 14px;margin-top:2px;box-shadow:0 5px 15px rgba(182,102,119,.20)}
+.photo-stage{position:relative;width:min(92vw,390px);aspect-ratio:1/1;margin:2px auto 0}
+.photo-cat{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:24px;z-index:2;pointer-events:none}
+.trip-photo{position:absolute;left:36.3%;top:55.5%;width:27.5%;height:15.4%;object-fit:cover;z-index:1;border:1px solid rgba(70,65,68,.30);background:#eee}
+.area-chip{font-size:12px;font-weight:800;color:#775f67;background:#f6e7ea;border:1px solid #ead6db;border-radius:999px;padding:4px 10px;margin-top:-2px}
+.trip-name{font-size:21px;font-weight:900;margin:7px 0 8px}
+.photo-status{min-height:22px;font-size:13px;font-weight:800;color:var(--new);margin:-5px 0 10px}
+.album-screen{align-items:stretch}
+.album-summary{align-self:center;margin:12px 0 8px;background:white;border:1px solid var(--line);border-radius:999px;padding:7px 15px;font-weight:900;box-shadow:0 5px 14px rgba(86,64,72,.06)}
+.album{width:100%;max-width:380px;text-align:left;margin:4px auto 0;padding-bottom:20px}
+.album-section{margin:18px 0 22px}
+.album-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;padding:0 2px}
+.album-heading h3{margin:0;font-size:18px}
+.area-count{font-size:12px;color:var(--muted);font-weight:800;background:#fff;border:1px solid var(--line);padding:4px 9px;border-radius:999px}
+.album-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.album-card{position:relative;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;min-height:142px;box-shadow:0 5px 15px rgba(86,64,72,.05)}
+.album-card:not(.locked){cursor:pointer;transition:.18s transform,.18s box-shadow}
+.album-card:not(.locked):active{transform:scale(.985)}
+.album-card:not(.locked):focus-visible{outline:3px solid rgba(216,174,184,.45);outline-offset:2px}
+.album-card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}
+.album-card .card-body{padding:9px 10px 11px}
+.album-card strong{font-size:13px;line-height:1.3;display:block}
+.album-card .obtained{font-size:10px;color:var(--muted);margin-top:4px}
+.album-card.locked{display:flex;align-items:center;justify-content:center;flex-direction:column;background:linear-gradient(145deg,#f2edef,#fbf8f9);color:#a3979c;border-style:dashed}
+.album-card.locked .question{font-size:28px;font-weight:900;letter-spacing:.08em;margin-bottom:6px}
+.album-card.locked .locked-name{font-size:12px;font-weight:800}
+.toprow{width:100%;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.back{border:0;background:transparent;color:var(--muted);font-weight:800;padding:8px 4px;cursor:pointer}
+.modal{position:fixed;inset:0;background:rgba(48,42,45,.25);display:none;align-items:center;justify-content:center;padding:24px;z-index:30}
+.modal.show{display:flex}
+.modal-card{width:min(100%,360px);background:#fff;border-radius:26px;padding:24px;box-shadow:0 18px 60px rgba(52,40,46,.22);text-align:center}
+.modal-card h2{margin:0 0 8px}.modal-card p{color:var(--muted);line-height:1.6}
+.name-input{width:100%;border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin:4px 0 14px;outline:none;text-align:center;font-size:18px}
+.name-input:focus{border-color:var(--pink-strong);box-shadow:0 0 0 3px rgba(216,174,184,.15)}
+.devnote{font-size:11px;color:#aaa;margin-top:8px}
+@media (max-width:360px){
+  .screen{padding-left:16px;padding-right:16px}
+  .album-grid{gap:8px}
+}
+
+/* 第2.1版：アルバム写真の拡大表示 */
+.photo-modal{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(42,36,39,.68);backdrop-filter:blur(3px)}
+.photo-modal.show{display:flex}
+.photo-modal-card{position:relative;width:min(100%,400px);max-height:calc(100dvh - 40px);overflow:auto;background:#fffdfd;border-radius:24px;padding:18px 18px 22px;text-align:center;box-shadow:0 24px 70px rgba(36,28,32,.30)}
+.photo-modal-close{position:absolute;right:10px;top:8px;z-index:2;width:40px;height:40px;border:0;border-radius:50%;background:rgba(255,255,255,.90);color:#66565c;font-size:28px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(70,50,58,.12)}
+.photo-modal-image{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:16px;background:#eee}
+.modal-area{display:inline-block;margin-top:14px}
+.modal-trip-name{margin-top:8px}
+.modal-bubble{margin:2px auto 10px}
+.modal-date{font-size:12px;color:var(--muted);font-weight:700}
+@media (max-width:360px){.photo-modal{padding:12px}.photo-modal-card{padding:14px 14px 20px;border-radius:20px}}
+
+/* 第3版：歩行距離・GPSステータス */
+.bonus-row{display:flex;justify-content:center;gap:6px;align-items:center;margin-top:8px;font-size:14px;color:#6c5960}
+.bonus-row strong{color:#bd7585;font-size:16px}
+.gps-status{margin-top:12px;border-radius:14px;padding:9px 11px;font-size:12px;line-height:1.55;background:#f7f2f3;color:#76686d;border:1px solid #eee2e5}
+.gps-status[data-tone="ok"]{background:#f2f7f1;color:#60715f;border-color:#dfe9dc}
+.gps-status[data-tone="bonus"]{background:#fff0f3;color:#a85f70;border-color:#f1d6dc;font-weight:800}
+.gps-status[data-tone="waiting"]{background:#f8f6f0;color:#7e735d;border-color:#ebe5d8}
+.gps-status[data-tone="error"]{background:#f8eeee;color:#986565;border-color:#edd8d8}
