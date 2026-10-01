@@ -95,3 +95,8 @@ body{display:flex;justify-content:center}
 .gps-status[data-tone="bonus"]{background:#fff0f3;color:#a85f70;border-color:#f1d6dc;font-weight:800}
 .gps-status[data-tone="waiting"]{background:#f8f6f0;color:#7e735d;border-color:#ebe5d8}
 .gps-status[data-tone="error"]{background:#f8eeee;color:#986565;border-color:#edd8d8}
+
+/* 第3.1版：GPS再取得 */
+.gps-retry{margin-top:9px;border:1px solid #dfcdd2;background:#fff;color:#755d65;border-radius:999px;min-height:38px;padding:0 16px;font-size:12px;font-weight:800;cursor:pointer}
+.gps-retry:active{transform:scale(.98)}
+.gps-retry[hidden]{display:none}

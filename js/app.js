@@ -1,5 +1,5 @@
 (() => {
-  // ===== 第3版：おさんぽ時間と歩行ボーナス =====
+  // ===== 第3.1版：GPS安定化 + おさんぽ時間と歩行ボーナス =====
   // 通常版：30分 / 100mごとに1分短縮 / 最短10分
   // URL末尾に ?test=1 を付けると、短時間で動作確認できます。
   const TEST_MODE = new URLSearchParams(location.search).get('test') === '1';
@@ -10,9 +10,12 @@
   const MAX_BONUS_MS = BASE_WALK_MS - MIN_WALK_MS;
 
   // GPSの揺れを歩行距離に数えすぎないための簡易フィルタ
-  const MAX_ACCEPTED_ACCURACY_M = 80; // 精度が悪すぎる測位は無視
-  const MIN_SEGMENT_M = 4;            // 数mの揺れは無視
-  const MAX_WALK_SPEED_MPS = 5;       // 約18km/h以上は歩行として無視
+  const MAX_ACCEPTED_ACCURACY_M = 100; // 精度が悪すぎる測位は距離に使わない
+  const MIN_SEGMENT_M = 4;             // GPSの細かな揺れは無視
+  const MAX_WALK_SPEED_MPS = 5;        // 約18km/h以上は歩行として無視
+  const MAX_POINT_GAP_MS = 90 * 1000;  // 長時間途切れた後は現在地を新しい基準点にする
+  const GPS_RETRY_DELAY_MS = 5000;
+  const GPS_SILENT_TIMEOUT_MS = 30000; // watchPositionが沈黙した場合の再起動目安
 
   const screens = [...document.querySelectorAll('.screen')];
   const $ = (id) => document.getElementById(id);
@@ -20,6 +23,11 @@
   let currentTrip = null;
   let geoWatchId = null;
   let lastGeoPoint = null;
+  let geoRetryTimer = null;
+  let geoWatchdogTimer = null;
+  let geoConsecutiveErrors = 0;
+  let geoUsingFallback = false;
+  let geoTrackingWanted = false;
 
   const trips = [
     { id:'tokyo_asakusa', area:'東京', place:'浅草・雷門', message:'雷門の近くまで行ってきたよ！', image:'assets/travel/tokyo_asakusa.jpg' },
@@ -167,10 +175,11 @@
     }
   }
 
-  function setGpsStatus(message, tone='normal'){
+  function setGpsStatus(message, tone='normal', showRetry=false){
     const el = $('gpsStatus');
     el.textContent = message;
     el.dataset.tone = tone;
+    if($('gpsRetryBtn')) $('gpsRetryBtn').hidden = !showRetry;
   }
 
   function haversineMeters(lat1, lon1, lat2, lon2){
@@ -182,37 +191,81 @@
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
+  function clearGeoTimers(){
+    if(geoRetryTimer !== null) clearTimeout(geoRetryTimer);
+    if(geoWatchdogTimer !== null) clearTimeout(geoWatchdogTimer);
+    geoRetryTimer = null;
+    geoWatchdogTimer = null;
+  }
+
+  function armGeoWatchdog(){
+    if(geoWatchdogTimer !== null) clearTimeout(geoWatchdogTimer);
+    geoWatchdogTimer = setTimeout(() => {
+      if(!geoTrackingWanted || localStorage.getItem('osanpoState') !== 'walk' || document.visibilityState !== 'visible') return;
+      setGpsStatus('位置情報の応答が止まったため、自動で再接続しています…', 'waiting', true);
+      restartGeoWatch(true);
+    }, GPS_SILENT_TIMEOUT_MS);
+  }
+
+  function scheduleGeoRetry(useFallback){
+    if(!geoTrackingWanted || localStorage.getItem('osanpoState') !== 'walk') return;
+    if(geoRetryTimer !== null) clearTimeout(geoRetryTimer);
+    geoRetryTimer = setTimeout(() => {
+      geoRetryTimer = null;
+      if(document.visibilityState === 'visible') restartGeoWatch(useFallback);
+    }, GPS_RETRY_DELAY_MS);
+  }
+
   function onGeoSuccess(position){
-    if(localStorage.getItem('osanpoState') !== 'walk') return;
+    if(localStorage.getItem('osanpoState') !== 'walk' || !geoTrackingWanted) return;
+    armGeoWatchdog();
+    geoConsecutiveErrors = 0;
+
     const { latitude, longitude, accuracy } = position.coords;
     const timestamp = position.timestamp || Date.now();
 
     if(!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
     if(Number.isFinite(accuracy) && accuracy > MAX_ACCEPTED_ACCURACY_M){
-      setGpsStatus(`位置情報を確認中…（精度 約${Math.round(accuracy)}m）`, 'waiting');
+      setGpsStatus(`現在地は受信できています。精度が上がるのを待っています…（約${Math.round(accuracy)}m）`, 'waiting', true);
       return;
     }
 
-    const point = { latitude, longitude, timestamp };
+    const point = { latitude, longitude, accuracy:Number.isFinite(accuracy) ? accuracy : 0, timestamp };
     if(!lastGeoPoint){
       lastGeoPoint = point;
-      setGpsStatus('位置情報を取得しました。いっしょに歩いてみよう！', 'ok');
+      setGpsStatus(geoUsingFallback ? '位置情報を再取得しました。計測を続けます。' : '位置情報を取得しました。いっしょに歩いてみよう！', 'ok');
+      return;
+    }
+
+    // ページ復帰やGPS停止などで長時間空いた場合、その間を直線距離として数えない。
+    const gapMs = timestamp - lastGeoPoint.timestamp;
+    if(gapMs <= 0 || gapMs > MAX_POINT_GAP_MS){
+      lastGeoPoint = point;
+      setGpsStatus('現在地を基準にして、ここから距離計測を再開します。', 'ok');
       return;
     }
 
     const segment = haversineMeters(lastGeoPoint.latitude, lastGeoPoint.longitude, latitude, longitude);
-    const seconds = Math.max(1, (timestamp - lastGeoPoint.timestamp) / 1000);
+    const seconds = Math.max(1, gapMs / 1000);
     const speed = segment / seconds;
 
-    // 常に基準点を更新し、異常値が後続距離へ連鎖しないようにする
-    lastGeoPoint = point;
+    // 測位精度が粗いほど、小さな揺れを距離に数えないよう閾値を少し上げる。
+    const combinedAccuracy = Math.max(lastGeoPoint.accuracy || 0, point.accuracy || 0);
+    const dynamicMinSegment = Math.max(MIN_SEGMENT_M, Math.min(15, combinedAccuracy * 0.15));
 
-    if(segment < MIN_SEGMENT_M) return;
-    if(speed > MAX_WALK_SPEED_MPS){
-      setGpsStatus('大きな位置ずれを検出したため、この移動は数えませんでした。', 'waiting');
+    if(segment < dynamicMinSegment){
+      // 小さな移動では基準点を更新しない。実際の歩行が積み重なると閾値を超えて計測される。
       return;
     }
 
+    if(speed > MAX_WALK_SPEED_MPS){
+      // GPSジャンプは距離に入れないが、その地点を新しい基準にして異常値の連鎖を防ぐ。
+      lastGeoPoint = point;
+      setGpsStatus('大きな位置ずれを検出したため、この移動は数えませんでした。計測は続けています。', 'waiting', true);
+      return;
+    }
+
+    lastGeoPoint = point;
     const before = walkDistance();
     const beforeBonus = bonusMsForDistance(before);
     const after = before + segment;
@@ -224,47 +277,89 @@
       const unit = TEST_MODE ? `${Math.floor(afterBonus/1000)}秒` : `${Math.floor(afterBonus/60000)}分`;
       setGpsStatus(`${catName()}、うれしくて足どりが軽いみたい！ 帰宅が${unit}早くなりました。`, 'bonus');
     } else {
-      setGpsStatus('いっしょに歩いています。', 'ok');
+      setGpsStatus('位置情報取得中。いっしょに歩いています。', 'ok');
     }
   }
 
   function onGeoError(error){
-    lastGeoPoint = null;
-    const map = {
-      1: '位置情報が許可されていません。通常の30分タイマーでおさんぽします。',
-      2: '現在地を取得できませんでした。通常タイマーでおさんぽします。',
-      3: '位置情報の取得に時間がかかっています。もう一度待ってみます。'
-    };
-    setGpsStatus(map[error.code] || '位置情報を取得できませんでした。', error.code === 1 ? 'error' : 'waiting');
+    if(!geoTrackingWanted || localStorage.getItem('osanpoState') !== 'walk') return;
+    if(geoWatchdogTimer !== null) clearTimeout(geoWatchdogTimer);
+    geoWatchdogTimer = null;
+
+    if(error.code === 1){
+      // 拒否だけは自動再試行しない。設定変更後にボタンから再開できる。
+      geoTrackingWanted = false;
+      if(geoWatchId !== null && 'geolocation' in navigator) navigator.geolocation.clearWatch(geoWatchId);
+      geoWatchId = null;
+      setGpsStatus('位置情報が許可されていません。タイマーはそのまま進みます。許可後に「位置情報を再取得」を押してください。', 'error', true);
+      return;
+    }
+
+    geoConsecutiveErrors += 1;
+    const isTimeout = error.code === 3;
+    const message = isTimeout
+      ? '位置情報の取得に時間がかかっています。前回の位置を保ったまま再試行します…'
+      : '現在地を一時的に取得できません。前回の位置を保ったまま再接続しています…';
+    setGpsStatus(message, 'waiting', true);
+
+    // 高精度取得が続けて失敗したら、標準精度へ切り替えて接続を維持する。
+    const useFallback = geoUsingFallback || geoConsecutiveErrors >= 2;
+    scheduleGeoRetry(useFallback);
   }
 
-  function startLocationTracking(){
-    stopLocationTracking();
-    lastGeoPoint = null;
+  function restartGeoWatch(useFallback=false, resetBase=false){
+    if(!geoTrackingWanted || localStorage.getItem('osanpoState') !== 'walk') return;
+    if(!window.isSecureContext || !('geolocation' in navigator)) return;
+
+    if(geoWatchId !== null) navigator.geolocation.clearWatch(geoWatchId);
+    geoWatchId = null;
+    if(resetBase) lastGeoPoint = null;
+    geoUsingFallback = Boolean(useFallback);
+
+    const options = geoUsingFallback
+      ? { enableHighAccuracy:false, maximumAge:10000, timeout:20000 }
+      : { enableHighAccuracy:true, maximumAge:3000, timeout:15000 };
+
+    setGpsStatus(geoUsingFallback ? '位置情報を標準精度で再接続しています…' : '位置情報を確認しています…', 'waiting', true);
+    geoWatchId = navigator.geolocation.watchPosition(onGeoSuccess, onGeoError, options);
+    armGeoWatchdog();
+  }
+
+  function startLocationTracking({ resetBase=true } = {}){
+    stopLocationTracking({ resetPoint:resetBase, disableWanted:false });
 
     if(!window.isSecureContext){
-      setGpsStatus('位置情報はHTTPSで開いたときに利用できます。今は通常タイマーで動作します。', 'error');
+      setGpsStatus('位置情報はHTTPSで開いたときに利用できます。タイマーは通常どおり進みます。', 'error');
       return;
     }
     if(!('geolocation' in navigator)){
-      setGpsStatus('このブラウザでは位置情報を利用できません。通常タイマーで動作します。', 'error');
+      setGpsStatus('このブラウザでは位置情報を利用できません。タイマーは通常どおり進みます。', 'error');
       return;
     }
 
-    setGpsStatus('位置情報を確認しています…', 'waiting');
-    geoWatchId = navigator.geolocation.watchPosition(
-      onGeoSuccess,
-      onGeoError,
-      { enableHighAccuracy:true, maximumAge:5000, timeout:15000 }
-    );
+    geoTrackingWanted = true;
+    geoConsecutiveErrors = 0;
+    restartGeoWatch(false, resetBase);
   }
 
-  function stopLocationTracking(){
+  function stopLocationTracking({ resetPoint=true, disableWanted=true } = {}){
+    clearGeoTimers();
     if(geoWatchId !== null && 'geolocation' in navigator){
       navigator.geolocation.clearWatch(geoWatchId);
     }
     geoWatchId = null;
-    lastGeoPoint = null;
+    geoUsingFallback = false;
+    geoConsecutiveErrors = 0;
+    if(resetPoint) lastGeoPoint = null;
+    if(disableWanted) geoTrackingWanted = false;
+  }
+
+  function retryLocationTracking(){
+    if(localStorage.getItem('osanpoState') !== 'walk') return;
+    geoTrackingWanted = true;
+    geoConsecutiveErrors = 0;
+    setGpsStatus('位置情報をもう一度確認しています…', 'waiting');
+    restartGeoWatch(false, false);
   }
 
   function finishWalk(){
@@ -423,13 +518,34 @@
   $('backBtn').addEventListener('click', () => show('home'));
   $('photoModalClose').addEventListener('click', closePhotoModal);
   $('photoModal').addEventListener('click', e => { if(e.target === $('photoModal')) closePhotoModal(); });
+  $('gpsRetryBtn').addEventListener('click', retryLocationTracking);
   document.addEventListener('keydown', e => { if(e.key === 'Escape' && $('photoModal').classList.contains('show')) closePhotoModal(); });
+
   document.addEventListener('visibilitychange', () => {
-    // iOS Safariでは画面ロック/バックグラウンド中のGPS継続は保証されない。
-    // 復帰時は現在地を基準に取り直すことで、閉じていた間の大ジャンプを距離に含めない。
-    if(document.visibilityState === 'visible' && localStorage.getItem('osanpoState') === 'walk'){
-      startLocationTracking();
+    if(localStorage.getItem('osanpoState') !== 'walk') return;
+    if(document.visibilityState === 'hidden'){
+      // iOS SafariはバックグラウンドGPSを保証しないため、明示的に一時停止。
+      // lastGeoPointも捨て、復帰後の大ジャンプを距離に数えない。
+      stopLocationTracking({ resetPoint:true, disableWanted:false });
+      return;
+    }
+    geoTrackingWanted = true;
+    startLocationTracking({ resetBase:true });
+    tick();
+  });
+
+  window.addEventListener('pageshow', e => {
+    // SafariのBFCacheから戻った場合も位置情報を取り直す。通常の初回loadではrestore()に任せる。
+    if(e.persisted && localStorage.getItem('osanpoState') === 'walk'){
+      geoTrackingWanted = true;
+      startLocationTracking({ resetBase:true });
       tick();
+    }
+  });
+
+  window.addEventListener('online', () => {
+    if(localStorage.getItem('osanpoState') === 'walk' && document.visibilityState === 'visible'){
+      retryLocationTracking();
     }
   });
 

@@ -4,14 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f8ecef" />
-  <title>おさんぽ〇〇（第3版）</title>
+  <title>おさんぽ〇〇（第3.1版）</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 <div class="app">
   <section id="home" class="screen active">
     <div class="eyebrow">MY CAT'S LITTLE TRIP</div>
-    <div class="brand">おさんぽ〇〇 <span class="version">第3版</span></div>
+    <div class="brand">おさんぽ〇〇 <span class="version">第3.1版</span></div>
     <div class="cat-card"><img class="cat-img" src="assets/cat_home.jpg" alt="おうちにいる猫"></div>
     <div class="bubble"><span class="cat-name">ねこ</span>「今日はどこへ行こうかな」</div>
     <button class="primary" id="goBtn">おさんぽする</button>
@@ -29,6 +29,7 @@
       <div class="distance">🚶 <span>一緒に歩いた距離</span> <span id="distance">0 m</span></div>
       <div class="bonus-row">🐾 帰宅時間を <strong id="bonusTime">0分</strong> 短縮中</div>
       <div id="gpsStatus" class="gps-status" data-tone="normal">100m歩くごとに帰宅が1分早くなります。</div>
+      <button id="gpsRetryBtn" class="gps-retry" type="button" hidden>位置情報を再取得</button>
       <div class="devnote">外出30分／最短10分。位置情報はおさんぽ中だけ使用します。</div>
     </div>
   </section>
