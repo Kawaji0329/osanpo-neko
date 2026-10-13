@@ -4,18 +4,28 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f8ecef" />
-  <title>おさんぽ〇〇（第3.1版）</title>
+  <title>おさんぽ〇〇（第3.2版）</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 <div class="app">
   <section id="home" class="screen active">
     <div class="eyebrow">MY CAT'S LITTLE TRIP</div>
-    <div class="brand">おさんぽ〇〇 <span class="version">第3.1版</span></div>
-    <div class="cat-card"><img class="cat-img" src="assets/cat_home.jpg" alt="おうちにいる猫"></div>
+    <div class="brand">おさんぽ〇〇 <span class="version">第3.2版</span></div>
+    <div class="cat-card home-cat-card"><img class="cat-img" src="assets/cat_home.jpg" alt="おうちにいる猫"></div>
     <div class="bubble"><span class="cat-name">ねこ</span>「今日はどこへ行こうかな」</div>
+
+    <div class="today-mini" id="todayMini">
+      <div class="today-mini-title">今日のおさんぽ</div>
+      <div class="today-mini-row"><span>🐾 一緒に歩いた距離</span><strong id="homeTodayDistance">0 m</strong></div>
+      <div class="today-mini-row"><span>🗺️ 猫のおでかけ</span><strong id="homeTodayTrips">0 回</strong></div>
+    </div>
+
     <button class="primary" id="goBtn">おさんぽする</button>
-    <button class="ghost" id="albumBtn">📖 アルバムを見る <span id="homeAlbumCount" class="mini-count">0 / 12</span></button>
+    <div class="home-links">
+      <button class="ghost" id="recordBtn">🐾 おさんぽ記録を見る</button>
+      <button class="ghost" id="albumBtn">📖 アルバムを見る <span id="homeAlbumCount" class="mini-count">0 / 12</span></button>
+    </div>
   </section>
 
   <section id="walk" class="screen">
@@ -25,13 +35,14 @@
     <div class="bubble"><span class="cat-name">ねこ</span>は、てくてく歩いています……</div>
     <div class="status">
       <div class="small">帰宅まで</div>
-      <div class="timer" id="timer">01:00</div>
+      <div class="timer" id="timer">30:00</div>
       <div class="distance">🚶 <span>一緒に歩いた距離</span> <span id="distance">0 m</span></div>
-      <div class="bonus-row">🐾 帰宅時間を <strong id="bonusTime">0分</strong> 短縮中</div>
-      <div id="gpsStatus" class="gps-status" data-tone="normal">100m歩くごとに帰宅が1分早くなります。</div>
+      <div class="shorten-line">🐾 帰宅時間を <strong id="shortened">0分</strong> 短縮中</div>
+      <div id="gpsStatus" class="gps-status">位置情報を準備しています…</div>
       <button id="gpsRetryBtn" class="gps-retry" type="button" hidden>位置情報を再取得</button>
-      <div class="devnote">外出30分／最短10分。位置情報はおさんぽ中だけ使用します。</div>
+      <div class="devnote" id="walkRuleNote">外出30分／100mごとに1分短縮／最短10分</div>
     </div>
+    <div id="walkToast" class="walk-toast" hidden></div>
   </section>
 
   <section id="returned" class="screen">
@@ -48,7 +59,7 @@
     <div id="photoBadge" class="photo-badge" hidden>NEW!</div>
     <div class="photo-stage">
       <img id="tripPhoto" class="trip-photo" alt="旅先の写真" />
-      <img class="photo-cat" src="assets/cat_photo.png" alt="写真を見せる猫">
+      <img class="photo-cat" src="assets/cat_photo.jpg" alt="写真を見せる猫">
     </div>
     <div class="area-chip" id="tripArea">東京</div>
     <div id="tripName" class="trip-name">浅草・雷門</div>
@@ -56,6 +67,39 @@
     <div id="photoStatus" class="photo-status"></div>
     <button class="primary" id="saveBtn">アルバムに保存</button>
     <button class="secondary" id="homeBtn">おうちへ戻る</button>
+  </section>
+
+  <section id="record" class="screen record-screen">
+    <div class="toprow"><button class="back" id="recordBackBtn">← 戻る</button><div></div></div>
+    <div class="eyebrow">WALK DIARY</div>
+    <div class="brand">おさんぽ記録</div>
+    <div class="small">猫との今日と、これまでの記録</div>
+
+    <div class="record-card today-card">
+      <div class="record-card-title">今日のおさんぽ記録</div>
+      <div class="record-date" id="recordTodayDate"></div>
+      <div class="record-stat-grid">
+        <div class="record-stat"><span>🐾</span><strong id="recordTodayDistance">0 m</strong><small>一緒に歩いた距離</small></div>
+        <div class="record-stat"><span>⏱️</span><strong id="recordTodayShortened">0分</strong><small>短縮した時間</small></div>
+        <div class="record-stat"><span>🗺️</span><strong id="recordTodayTrips">0回</strong><small>猫のおでかけ</small></div>
+        <div class="record-stat"><span>📷</span><strong id="recordTodayPhotos">0枚</strong><small>持ち帰った写真</small></div>
+      </div>
+      <div class="places-block">
+        <div class="places-title">今日行ったところ</div>
+        <div id="recordTodayPlaces" class="places-list"><span class="empty-place">まだおでかけしていません</span></div>
+      </div>
+    </div>
+
+    <div class="record-card total-card">
+      <div class="record-card-title">これまでの記録</div>
+      <div class="total-row"><span>🐾 累計いっしょに歩いた距離</span><strong id="recordTotalDistance">0 m</strong></div>
+      <div class="total-row"><span>🧳 累計おでかけ回数</span><strong id="recordTotalTrips">0回</strong></div>
+    </div>
+
+    <div class="record-card history-card">
+      <div class="record-card-title">最近のおさんぽ</div>
+      <div id="recordHistory" class="record-history"></div>
+    </div>
   </section>
 
   <section id="album" class="screen album-screen">
@@ -67,23 +111,26 @@
   </section>
 </div>
 
-<div id="photoModal" class="photo-modal" aria-hidden="true">
-  <div class="photo-modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTripName">
-    <button id="photoModalClose" class="photo-modal-close" type="button" aria-label="写真を閉じる">×</button>
-    <img id="modalTripPhoto" class="photo-modal-image" alt="旅の写真">
-    <div id="modalTripArea" class="area-chip modal-area">東京</div>
-    <div id="modalTripName" class="trip-name modal-trip-name">浅草・雷門</div>
-    <div class="bubble modal-bubble"><span class="cat-name">ねこ</span>「<span id="modalTripLine"></span>」</div>
-    <div id="modalTripDate" class="modal-date"></div>
-  </div>
-</div>
-
 <div id="nameModal" class="modal">
   <div class="modal-card">
     <h2>この子の名前は？</h2>
     <p>好きな名前をつけてください。ブラウザの保存データを消すとリセットできます。</p>
     <input id="nameInput" class="name-input" maxlength="12" placeholder="例：ミケ" />
     <button id="nameSaveBtn" class="primary">この名前にする</button>
+  </div>
+</div>
+
+<div id="photoModal" class="photo-modal" aria-hidden="true">
+  <div class="photo-modal-backdrop" data-close-photo></div>
+  <div class="photo-modal-card" role="dialog" aria-modal="true" aria-labelledby="modalPhotoName">
+    <button class="photo-modal-close" id="photoModalClose" aria-label="閉じる">×</button>
+    <img id="modalPhotoImage" class="photo-modal-image" alt="旅先の拡大写真">
+    <div class="photo-modal-body">
+      <div id="modalPhotoArea" class="area-chip"></div>
+      <div id="modalPhotoName" class="modal-photo-name"></div>
+      <div class="modal-cat-line"><span class="cat-name">ねこ</span>「<span id="modalPhotoMessage"></span>」</div>
+      <div id="modalPhotoDate" class="modal-photo-date"></div>
+    </div>
   </div>
 </div>
 
