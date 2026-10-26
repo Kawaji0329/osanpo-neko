@@ -13,6 +13,7 @@
   const $ = (id) => document.getElementById(id);
   let timerId = null;
   let currentTrip = null;
+  let currentSouvenir = null;
   let geoWatchId = null;
   let geoRetryTimer = null;
   let geoStaleTimer = null;
@@ -37,6 +38,19 @@
     { id:'hokkaido_furano', area:'北海道', place:'富良野', message:'きれいな花畑を見つけたよ！', image:'assets/travel/hokkaido_furano.jpg' }
   ];
   const areaOrder = ['東京','京都','北海道'];
+  const SOUVENIR_CHANCE = 0.40;
+  const souvenirs = [
+    { id:'tokyo_ningyoyaki', area:'東京', name:'浅草の人形焼き', message:'かわいい形のお菓子、見つけたよ！', image:'assets/souvenirs/tokyo_ningyoyaki.jpg' },
+    { id:'tokyo_kaminariokoshi', area:'東京', name:'雷おこし', message:'カリカリしてて、いい音がしそう！', image:'assets/souvenirs/tokyo_kaminariokoshi.jpg' },
+    { id:'tokyo_taiyaki', area:'東京', name:'たい焼き', message:'お魚みたいだけど、おやつなんだって！', image:'assets/souvenirs/tokyo_taiyaki.jpg' },
+    { id:'kyoto_yatsuhashi', area:'京都', name:'生八つ橋', message:'もちもちで、やわらかそうだったよ！', image:'assets/souvenirs/kyoto_yatsuhashi.jpg' },
+    { id:'kyoto_matcha_wagashi', area:'京都', name:'抹茶の上生菓子', message:'きれいな緑のお菓子を見つけたよ！', image:'assets/souvenirs/kyoto_matcha_wagashi.jpg' },
+    { id:'kyoto_seasonal_wagashi', area:'京都', name:'季節の和菓子', message:'お花みたいで、ちょっと見とれちゃった！', image:'assets/souvenirs/kyoto_seasonal_wagashi.jpg' },
+    { id:'hokkaido_melon', area:'北海道', name:'北海道メロン', message:'あま〜いにおいがしたよ！', image:'assets/souvenirs/hokkaido_melon.jpg' },
+    { id:'hokkaido_corn', area:'北海道', name:'とうもろこし', message:'つぶつぶがいっぱいで、おいしそう！', image:'assets/souvenirs/hokkaido_corn.jpg' },
+    { id:'hokkaido_milk_sweets', area:'北海道', name:'ミルクのお菓子', message:'やさしい甘さのお菓子みたいだよ！', image:'assets/souvenirs/hokkaido_milk_sweets.jpg' }
+  ];
+
 
   function show(id){
     screens.forEach(s => s.classList.toggle('active', s.id === id));
@@ -60,6 +74,92 @@
   }
   function ownedCount(){ return Object.keys(ownedMap()).length; }
   function updateHomeCount(){ $('homeAlbumCount').textContent = `${ownedCount()} / ${trips.length}`; }
+
+  function souvenirMap(){
+    try{ return JSON.parse(localStorage.getItem('osanpoOwnedSouvenirs') || '{}'); }
+    catch(e){ return {}; }
+  }
+  function souvenirCount(){ return Object.keys(souvenirMap()).length; }
+  function updateHomeSouvenirCount(){ $('homeSouvenirCount').textContent = `${souvenirCount()} / ${souvenirs.length}`; }
+  function chooseSouvenirForTrip(){
+    const trip = loadCurrentTrip();
+    currentSouvenir = null;
+    localStorage.removeItem('osanpoCurrentSouvenirId');
+    localStorage.removeItem('osanpoSouvenirWasNew');
+    localStorage.setItem('osanpoSouvenirAwarded','0');
+    if(!trip || Math.random() >= SOUVENIR_CHANCE) return;
+    const choices = souvenirs.filter(s => s.area === trip.area);
+    currentSouvenir = choices[Math.floor(Math.random()*choices.length)] || null;
+    if(currentSouvenir) localStorage.setItem('osanpoCurrentSouvenirId', currentSouvenir.id);
+  }
+  function loadCurrentSouvenir(){
+    if(currentSouvenir) return currentSouvenir;
+    const id = localStorage.getItem('osanpoCurrentSouvenirId');
+    currentSouvenir = souvenirs.find(s => s.id === id) || null;
+    return currentSouvenir;
+  }
+  function awardSouvenirOnce(){
+    const s = loadCurrentSouvenir();
+    if(!s || localStorage.getItem('osanpoSouvenirAwarded') === '1') return;
+    const owned = souvenirMap();
+    const wasNew = !owned[s.id];
+    if(wasNew){ owned[s.id] = { obtainedAt:new Date().toISOString(), count:1 }; }
+    else { owned[s.id].count = Number(owned[s.id].count||1) + 1; }
+    localStorage.setItem('osanpoOwnedSouvenirs',JSON.stringify(owned));
+    localStorage.setItem('osanpoSouvenirWasNew',wasNew ? '1':'0');
+    localStorage.setItem('osanpoSouvenirAwarded','1');
+    updateHomeSouvenirCount();
+  }
+  function updateReturnSouvenirHint(){
+    const has = !!loadCurrentSouvenir();
+    $('returnSouvenirHint').hidden = !has;
+    $('souvenirBtn').hidden = !has;
+  }
+  function renderSouvenir(){
+    const s = loadCurrentSouvenir();
+    if(!s){ goHome(); return; }
+    awardSouvenirOnce();
+    const wasNew = localStorage.getItem('osanpoSouvenirWasNew') === '1';
+    $('souvenirImage').src = s.image;
+    $('souvenirImage').alt = `${s.name}のおみやげ画像`;
+    $('souvenirArea').textContent = s.area;
+    $('souvenirName').textContent = s.name;
+    $('souvenirLine').textContent = s.message;
+    $('souvenirBadge').hidden = !wasNew;
+    $('souvenirStatus').textContent = wasNew ? '新しいおみやげを見つけました！' : 'これ、前にも持ってきた気がする。';
+  }
+  function renderSouvenirBook(){
+    const owned = souvenirMap();
+    const root = $('souvenirList');
+    root.innerHTML = '';
+    $('souvenirSummary').textContent = `${Object.keys(owned).length} / ${souvenirs.length}`;
+    areaOrder.forEach(area => {
+      const items = souvenirs.filter(s => s.area===area);
+      const areaOwned = items.filter(s => owned[s.id]).length;
+      const section = document.createElement('section');
+      section.className = 'album-section';
+      const heading = document.createElement('div');
+      heading.className = 'album-heading';
+      heading.innerHTML = `<h3>${area}</h3><span class="area-count">${areaOwned} / ${items.length}</span>`;
+      section.appendChild(heading);
+      const grid = document.createElement('div'); grid.className='album-grid souvenir-grid';
+      items.forEach(s => {
+        const data = owned[s.id];
+        const card = document.createElement('div');
+        if(data){
+          const d = new Date(data.obtainedAt);
+          card.className='album-card souvenir-card';
+          card.innerHTML = `<img src="${s.image}" alt="${s.name}"><div class="card-body"><strong>${s.name}</strong><div class="souvenir-card-line">${s.message}</div><div class="obtained">${d.toLocaleDateString('ja-JP')} に発見${Number(data.count||1)>1 ? ` ・ ×${Number(data.count)}` : ''}</div></div>`;
+        } else {
+          card.className='album-card locked souvenir-card';
+          card.innerHTML='<div class="question">？？？</div><div class="locked-name">まだ見つけていません</div>';
+        }
+        grid.appendChild(card);
+      });
+      section.appendChild(grid); root.appendChild(section);
+    });
+  }
+
 
   function dateKey(d = new Date()){
     const y = d.getFullYear();
@@ -179,6 +279,8 @@
     localStorage.removeItem('osanpoEndAt');
     localStorage.setItem('osanpoState','returned');
     logCompletedTripOnce();
+    awardSouvenirOnce();
+    updateReturnSouvenirHint();
     show('returned');
   }
 
@@ -193,6 +295,7 @@
 
   function startWalk(){
     chooseTrip();
+    chooseSouvenirForTrip();
     const now = Date.now();
     localStorage.setItem('osanpoStartAt', String(now));
     localStorage.setItem('osanpoEndAt', String(now + BASE_WALK_MS));
@@ -466,9 +569,14 @@
     localStorage.removeItem('osanpoWalkDistanceM');
     localStorage.removeItem('osanpoWalkShortenedMs');
     localStorage.removeItem('osanpoTripLogged');
+    localStorage.removeItem('osanpoCurrentSouvenirId');
+    localStorage.removeItem('osanpoSouvenirAwarded');
+    localStorage.removeItem('osanpoSouvenirWasNew');
     currentTrip = null;
+    currentSouvenir = null;
     updateHomeCount();
     updateHomeRecordMini();
+    updateHomeSouvenirCount();
     show('home');
   }
 
@@ -476,6 +584,7 @@
     paintName();
     updateHomeCount();
     updateHomeRecordMini();
+    updateHomeSouvenirCount();
     const state = localStorage.getItem('osanpoState') || 'home';
     if(state === 'walk'){
       const end = effectiveEndAt();
@@ -486,9 +595,11 @@
       }
       localStorage.setItem('osanpoState','returned');
       logCompletedTripOnce();
+      awardSouvenirOnce();
+      updateReturnSouvenirHint();
       show('returned'); return;
     }
-    if(state === 'returned'){ logCompletedTripOnce(); show('returned'); }
+    if(state === 'returned'){ logCompletedTripOnce(); awardSouvenirOnce(); updateReturnSouvenirHint(); show('returned'); }
     else show('home');
   }
 
@@ -498,8 +609,13 @@
   $('gpsRetryBtn').addEventListener('click', () => { usingHighAccuracy = true; geoFailCount = 0; startGeo(true); });
   $('showPhotoBtn').addEventListener('click', () => { renderTrip(); show('photo'); });
   $('saveBtn').addEventListener('click', saveAlbum);
+  $('souvenirBtn').addEventListener('click', () => { renderSouvenir(); show('souvenir'); });
+  $('souvenirToBookBtn').addEventListener('click', () => { renderSouvenirBook(); show('souvenirBook'); });
+  $('souvenirHomeBtn').addEventListener('click', goHome);
   $('homeBtn').addEventListener('click', goHome);
   $('albumBtn').addEventListener('click', () => { renderAlbum(); show('album'); });
+  $('souvenirBookBtn').addEventListener('click', () => { renderSouvenirBook(); show('souvenirBook'); });
+  $('souvenirBackBtn').addEventListener('click', goHome);
   $('backBtn').addEventListener('click', () => show('home'));
   $('recordBtn').addEventListener('click', () => { renderRecords(); show('record'); });
   $('recordBackBtn').addEventListener('click', () => show('home'));
